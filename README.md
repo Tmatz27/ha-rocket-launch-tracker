@@ -74,12 +74,32 @@ Tracker.**
 
 | Field | Default | Description |
 | --- | --- | --- |
-| Launch site filter | `Vandenberg` | Case-insensitive text matched against the launch pad's location name. Leave blank to track every launch worldwide |
+| Launch site filter | `Vandenberg` | Case-insensitive text, resolved once at setup to the matching Launch Library location(s) - see below. Leave blank to track every launch worldwide |
 | API key | *(blank)* | Optional. Raises the rate limit above the free 15/hour tier |
 | How many upcoming matching launches to track | `5` | Size of the "Upcoming Launches" list |
 | Switch to live polling this many hours before launch | `48` | The near-window |
 | Live polling interval (minutes) | `5` | How often to poll inside the near-window |
 | Normal polling interval (minutes) | `30` | How often to poll otherwise |
+
+If your site filter doesn't match any known Launch Library location, setup
+fails with an explanation instead of silently creating a tracker that never
+finds anything — try a broader term (e.g. "Vandenberg" rather than a
+specific pad name), or check the spelling.
+
+### How the site filter actually works
+
+Launch Library 2's launch endpoint only reliably filters by exact numeric
+location id (`location__ids`) — a text filter isn't a documented option
+there, and this API silently ignores filter parameters a given endpoint
+doesn't recognize rather than rejecting them, so a wrong one would look
+identical to "no launches happen to match" instead of erroring. So your
+typed site filter is resolved to id(s) once, at setup (via Launch Library's
+`/locations/` search), and every subsequent poll filters by those exact
+id(s) — Vandenberg SFB, for example, resolves to id `11`. The returned
+launches are also double-checked against those same ids in Python before
+becoming sensor data, as a safety net that can only narrow results further,
+never let a different site leak through even if the upstream query filter
+ever misbehaves.
 
 Everything here can be changed later from the integration's **Configure**
 button without removing and re-adding it.

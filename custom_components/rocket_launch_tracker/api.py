@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from .const import API_BASE_URL, UPCOMING_PATH
+from .const import API_BASE_URL, LOCATIONS_PATH, UPCOMING_PATH
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +27,10 @@ class LaunchLibraryRateLimited(LaunchLibraryError):
     """Raised specifically for HTTP 429 responses."""
 
 
+class LaunchLibraryNoLocationMatch(LaunchLibraryError):
+    """Raised when a typed site filter matches no known Launch Library location."""
+
+
 @dataclass
 class LaunchLibraryClient:
     """Thin async wrapper around the Launch Library 2 upcoming-launches endpoint.
@@ -38,21 +42,39 @@ class LaunchLibraryClient:
     session: Any
     api_key: str | None = None
 
-    async def async_get_upcoming(self, site_filter: str, limit: int) -> dict:
-        """Fetch the next `limit` launches, optionally filtered to a site."""
-        params: dict[str, Any] = {"limit": limit, "mode": "detailed"}
-        if site_filter:
-            # location__name__contains matches against the pad's location
-            # name (e.g. "Vandenberg SFB, CA, USA"), so a short substring
-            # like "Vandenberg" is enough - confirmed against the Pad list
-            # endpoint's documented filter parameters.
-            params["location__name__contains"] = site_filter
+    async def async_get_upcoming(self, location_ids: list[int] | None, limit: int) -> dict:
+        """Fetch the next `limit` launches, optionally filtered to specific locations.
 
+        Filtering by `location__ids` (exact numeric location ids, comma
+        separated) rather than a text match: `location__name__contains` is a
+        documented filter on the *pad* list endpoint, but wasn't confirmed
+        against the launch/upcoming endpoint specifically, and unrecognized
+        filter params on this API are silently ignored rather than
+        rejected - which would make the "filter" a no-op with no error to
+        show for it. `location__ids` is confirmed against the launch
+        endpoint's own documented filters. Resolve site text to ids first
+        with async_search_locations.
+        """
+        params: dict[str, Any] = {"limit": limit, "mode": "detailed"}
+        if location_ids:
+            params["location__ids"] = ",".join(str(i) for i in location_ids)
+
+        return await self._get(UPCOMING_PATH, params)
+
+    async def async_search_locations(self, name_contains: str) -> list[dict]:
+        """Resolve free-text site input (e.g. "Vandenberg") to Launch Library location records."""
+        payload = await self._get(LOCATIONS_PATH, {"name__contains": name_contains, "limit": 25})
+        results = payload.get("results") if isinstance(payload, dict) else None
+        if not isinstance(results, list):
+            return []
+        return [loc for loc in (parse_location(item) for item in results) if loc["id"] is not None]
+
+    async def _get(self, path: str, params: dict[str, Any]) -> dict:
         headers = {"Accept": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Token {self.api_key}"
 
-        url = f"{API_BASE_URL}{UPCOMING_PATH}"
+        url = f"{API_BASE_URL}{path}"
         try:
             async with self.session.get(
                 url, params=params, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS
@@ -123,6 +145,7 @@ def parse_launch(raw: dict) -> dict:
         "mission_name": _nested(raw, "mission", "name") or raw.get("name"),
         "mission_description": _nested(raw, "mission", "description"),
         "pad_name": _nested(raw, "pad", "name"),
+        "location_id": _nested(raw, "pad", "location", "id"),
         "location_name": _nested(raw, "pad", "location", "name"),
         "image": _image_url(raw),
         "webcast_live": bool(raw.get("webcast_live")),
@@ -142,3 +165,24 @@ def parse_launch_list(payload: dict) -> list[dict]:
     if not isinstance(results, list):
         return []
     return [parse_launch(item) for item in results if isinstance(item, dict)]
+
+
+def parse_location(raw: dict) -> dict:
+    """Normalize one raw Launch Library 2 location object."""
+    return {"id": raw.get("id"), "name": raw.get("name")}
+
+
+def filter_by_location_ids(launches: list[dict], location_ids: list[int] | None) -> list[dict]:
+    """Drop any launch whose location id isn't one of the resolved ids.
+
+    A safety net behind the server-side `location__ids` query filter, not a
+    substitute for it: if the query filter ever misbehaves (a bad response,
+    an API change), this still guarantees no other site's launches leak
+    into the tracked list - it can only narrow results the server already
+    returned, not recover ones it didn't. A launch with no location id at
+    all is dropped when a filter is active, rather than assumed to match.
+    """
+    if not location_ids:
+        return launches
+    wanted = set(location_ids)
+    return [launch for launch in launches if launch.get("location_id") in wanted]

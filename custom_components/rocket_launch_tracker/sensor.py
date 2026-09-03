@@ -91,6 +91,7 @@ class NextLaunchSensor(_BaseLaunchEntity):
             "provider": launch.get("provider"),
             "rocket": launch.get("rocket"),
             "pad_name": launch.get("pad_name"),
+            "location_id": launch.get("location_id"),
             "location_name": launch.get("location_name"),
             "net_precision": launch.get("net_precision"),
             "window_start": launch.get("window_start"),

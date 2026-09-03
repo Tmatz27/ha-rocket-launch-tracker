@@ -10,10 +10,11 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import LaunchLibraryClient, LaunchLibraryError
+from .api import LaunchLibraryClient, LaunchLibraryError, LaunchLibraryNoLocationMatch
 from .const import (
     CONF_API_KEY,
     CONF_FAR_INTERVAL_MINUTES,
+    CONF_LOCATION_IDS,
     CONF_NEAR_INTERVAL_MINUTES,
     CONF_NEAR_WINDOW_HOURS,
     CONF_SITE_FILTER,
@@ -55,6 +56,23 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
     )
 
 
+async def _resolve_location_ids(client: LaunchLibraryClient, site_filter: str) -> list[int]:
+    """Resolve free-text site input to Launch Library location ids.
+
+    Filtering the launch endpoint itself only works reliably by numeric
+    `location__ids` (see api.py's async_get_upcoming), so a typed site name
+    has to be turned into id(s) once here rather than passed through as
+    text on every poll. Raises LaunchLibraryError (including a dedicated
+    "no match" case) rather than returning silently - a site filter that
+    quietly matches nothing would otherwise show up only as an
+    empty-forever integration with no explanation.
+    """
+    matches = await client.async_search_locations(site_filter)
+    if not matches:
+        raise LaunchLibraryNoLocationMatch(f'No Launch Library location matches "{site_filter}".')
+    return [loc["id"] for loc in matches]
+
+
 class RocketLaunchTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle initial setup. Multiple entries are allowed (e.g. one per site)."""
 
@@ -72,7 +90,11 @@ class RocketLaunchTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             session = async_get_clientsession(self.hass)
             client = LaunchLibraryClient(session=session, api_key=user_input.get(CONF_API_KEY) or None)
             try:
-                await client.async_get_upcoming(site_filter, limit=1)
+                location_ids = await _resolve_location_ids(client, site_filter) if site_filter else []
+                user_input[CONF_LOCATION_IDS] = location_ids
+                await client.async_get_upcoming(location_ids or None, limit=1)
+            except LaunchLibraryNoLocationMatch:
+                errors["base"] = "no_location_match"
             except LaunchLibraryError:
                 errors["base"] = "cannot_connect"
             else:
@@ -93,9 +115,22 @@ class RocketLaunchTrackerOptionsFlow(config_entries.OptionsFlow):
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
-        if user_input is not None:
-            user_input[CONF_SITE_FILTER] = user_input[CONF_SITE_FILTER].strip()
-            return self.async_create_entry(title="", data=user_input)
+        errors: dict[str, str] = {}
 
-        current = {**self._config_entry.data, **self._config_entry.options}
-        return self.async_show_form(step_id="init", data_schema=_schema(current))
+        if user_input is not None:
+            site_filter = user_input[CONF_SITE_FILTER].strip()
+            user_input[CONF_SITE_FILTER] = site_filter
+
+            session = async_get_clientsession(self.hass)
+            client = LaunchLibraryClient(session=session, api_key=user_input.get(CONF_API_KEY) or None)
+            try:
+                user_input[CONF_LOCATION_IDS] = await _resolve_location_ids(client, site_filter) if site_filter else []
+            except LaunchLibraryNoLocationMatch:
+                errors["base"] = "no_location_match"
+            except LaunchLibraryError:
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_create_entry(title="", data=user_input)
+
+        current = {**self._config_entry.data, **self._config_entry.options, **(user_input or {})}
+        return self.async_show_form(step_id="init", data_schema=_schema(current), errors=errors)

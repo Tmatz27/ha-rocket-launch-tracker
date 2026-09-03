@@ -16,7 +16,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .api import LaunchLibraryClient, LaunchLibraryError, LaunchLibraryRateLimited, parse_launch_list
+from .api import (
+    LaunchLibraryClient,
+    LaunchLibraryError,
+    LaunchLibraryRateLimited,
+    filter_by_location_ids,
+    parse_launch_list,
+)
 from .const import DOMAIN
 from .interval import next_poll_interval
 
@@ -31,6 +37,7 @@ class RocketLaunchCoordinator(DataUpdateCoordinator[list[dict]]):
         hass: HomeAssistant,
         *,
         site_filter: str,
+        location_ids: list[int] | None,
         api_key: str | None,
         upcoming_count: int,
         near_window_hours: float,
@@ -38,6 +45,7 @@ class RocketLaunchCoordinator(DataUpdateCoordinator[list[dict]]):
         far_interval_minutes: float,
     ) -> None:
         self.site_filter = site_filter
+        self.location_ids = location_ids or None
         self.upcoming_count = upcoming_count
         self._near_window = timedelta(hours=near_window_hours)
         self._near_interval = timedelta(minutes=near_interval_minutes)
@@ -53,7 +61,7 @@ class RocketLaunchCoordinator(DataUpdateCoordinator[list[dict]]):
 
     async def _async_update_data(self) -> list[dict]:
         try:
-            payload = await self._client.async_get_upcoming(self.site_filter, self.upcoming_count)
+            payload = await self._client.async_get_upcoming(self.location_ids, self.upcoming_count)
         except LaunchLibraryRateLimited as err:
             # Back off harder than the configured far interval rather than
             # hammering an endpoint that just told us to slow down.
@@ -62,7 +70,9 @@ class RocketLaunchCoordinator(DataUpdateCoordinator[list[dict]]):
         except LaunchLibraryError as err:
             raise UpdateFailed(str(err)) from err
 
-        launches = parse_launch_list(payload)
+        # filter_by_location_ids is a safety net behind the server-side
+        # query filter above, not a replacement for it - see its docstring.
+        launches = filter_by_location_ids(parse_launch_list(payload), self.location_ids)
         self.update_interval = next_poll_interval(
             launches,
             now=dt_util.utcnow(),

@@ -13,7 +13,7 @@
           "far_interval_minutes": "Normal polling interval (minutes)"
         },
         "data_description": {
-          "site_filter": "Case-insensitive text matched against the launch pad's location name, e.g. \"Vandenberg\" or \"Cape Canaveral\". Leave blank to track all launches worldwide.",
+          "site_filter": "Case-insensitive text resolved to a Launch Library location, e.g. \"Vandenberg\" or \"Cape Canaveral\" - matched once at setup and then filtered by that location's exact id on every poll. Leave blank to track all launches worldwide.",
           "api_key": "A free Launch Library 2 API key raises the request-rate ceiling above the 15/hour unauthenticated limit. Leave blank to use the free tier.",
           "near_window_hours": "Inside this window, polling speeds up to the live interval below.",
           "near_interval_minutes": "How often to poll once inside the live window.",
@@ -22,7 +22,8 @@
       }
     },
     "error": {
-      "cannot_connect": "Could not reach Launch Library 2 with these settings. Check the site filter and API key, then try again."
+      "cannot_connect": "Could not reach Launch Library 2 with these settings. Check the site filter and API key, then try again.",
+      "no_location_match": "No Launch Library location matches that site filter. Try a broader term (e.g. \"Vandenberg\" or \"Cape Canaveral\"), or leave it blank to track all launches worldwide."
     },
     "abort": {
       "already_configured": "A tracker for this site filter already exists."
@@ -41,6 +42,10 @@
           "far_interval_minutes": "Normal polling interval (minutes)"
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Could not reach Launch Library 2 with these settings. Check the site filter and API key, then try again.",
+      "no_location_match": "No Launch Library location matches that site filter. Try a broader term (e.g. \"Vandenberg\" or \"Cape Canaveral\"), or leave it blank to track all launches worldwide."
     }
   },
   "entity": {

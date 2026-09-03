@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.2
+
+- **Fixed launch-site filtering**: switched from `location__name__contains`
+  to `location__ids`. The text filter was only ever confirmed against the
+  Pad list endpoint's documented filters, not the launch/upcoming endpoint
+  itself, and unrecognized filter params are silently ignored rather than
+  rejected on this API - so it was at real risk of quietly matching
+  nothing (returning every launch worldwide, unfiltered) instead of
+  actually restricting to your site
+- The site filter you type is now resolved to Launch Library location id(s)
+  once at setup (via the `/locations/` search endpoint) rather than passed
+  through as text on every poll; setup now fails with a clear error if
+  nothing matches, instead of silently creating a tracker that never finds
+  anything
+- Added a client-side safety-net filter (by exact location id) behind the
+  server-side query filter, so a launch from the wrong site can't leak
+  into the tracked list even if the upstream filter ever misbehaves
+- `sensor.<site>_next_launch` and the `launches` list both now include a
+  `location_id` attribute
+
 ## 0.1.1
 
 - Fixed `manifest.json` key ordering (hassfest requires `domain`, `name`,

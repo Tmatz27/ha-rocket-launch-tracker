@@ -145,7 +145,7 @@ RAW_LAUNCH_FULL = {
     "launch_service_provider": {"id": 121, "name": "SpaceX"},
     "rocket": {"configuration": {"name": "Falcon 9", "full_name": "Falcon 9 Block 5"}},
     "mission": {"name": "Starlink Group 12-3", "description": "A batch of Starlink satellites."},
-    "pad": {"name": "Space Launch Complex 4E", "location": {"name": "Vandenberg SFB, CA, USA"}},
+    "pad": {"name": "Space Launch Complex 4E", "location": {"id": 11, "name": "Vandenberg SFB, CA, USA"}},
     "image": {"image_url": "https://example.com/image.jpg"},
     "webcast_live": True,
     "last_updated": "2026-09-03T10:00:00Z",
@@ -176,6 +176,7 @@ def test_parse_launch_full_record():
     assert launch["rocket"] == "Falcon 9"
     assert launch["mission_name"] == "Starlink Group 12-3"
     assert launch["pad_name"] == "Space Launch Complex 4E"
+    assert launch["location_id"] == 11
     assert launch["location_name"] == "Vandenberg SFB, CA, USA"
     assert launch["image"] == "https://example.com/image.jpg"
     assert launch["webcast_live"] is True
@@ -207,3 +208,50 @@ def test_parse_launch_list_handles_missing_or_malformed_results():
     assert api.parse_launch_list({}) == []
     assert api.parse_launch_list({"results": None}) == []
     assert api.parse_launch_list({"results": "not-a-list"}) == []
+
+
+# --- api.py location filtering --------------------------------------------
+#
+# location__name__contains (the original filter) was only ever confirmed
+# against the Pad list endpoint's documented filters, not the launch/upcoming
+# endpoint itself - and this API silently ignores filter params a given
+# endpoint doesn't recognize rather than rejecting them, so a bad filter
+# param looks identical to "no launches matched" instead of erroring. These
+# tests cover the fix: exact numeric location__ids filtering plus a
+# client-side safety net that can only narrow results, never miss ones the
+# server already returned.
+
+
+def test_parse_location():
+    assert api.parse_location({"id": 11, "name": "Vandenberg SFB, CA, USA"}) == {
+        "id": 11,
+        "name": "Vandenberg SFB, CA, USA",
+    }
+
+
+def test_filter_by_location_ids_keeps_only_matching_launches():
+    vandenberg = api.parse_launch(RAW_LAUNCH_FULL)  # location_id 11
+    other = api.parse_launch({**RAW_LAUNCH_FULL, "id": "xyz-789", "pad": {"name": "SLC-40", "location": {"id": 27, "name": "Cape Canaveral SFS, FL, USA"}}})
+
+    result = api.filter_by_location_ids([vandenberg, other], [11])
+    assert [launch["id"] for launch in result] == ["abc-123"]
+
+
+def test_filter_by_location_ids_accepts_multiple_ids():
+    vandenberg = api.parse_launch(RAW_LAUNCH_FULL)
+    other = api.parse_launch({**RAW_LAUNCH_FULL, "id": "xyz-789", "pad": {"name": "SLC-40", "location": {"id": 27, "name": "Cape Canaveral SFS, FL, USA"}}})
+
+    result = api.filter_by_location_ids([vandenberg, other], [11, 27])
+    assert {launch["id"] for launch in result} == {"abc-123", "xyz-789"}
+
+
+def test_filter_by_location_ids_drops_launches_with_no_location_id_when_filtering():
+    no_location = api.parse_launch(RAW_LAUNCH_SPARSE)  # no pad/location at all
+    result = api.filter_by_location_ids([no_location], [11])
+    assert result == []
+
+
+def test_filter_by_location_ids_passthrough_when_no_filter_configured():
+    launches = api.parse_launch_list({"results": [RAW_LAUNCH_FULL, RAW_LAUNCH_SPARSE]})
+    assert api.filter_by_location_ids(launches, None) == launches
+    assert api.filter_by_location_ids(launches, []) == launches

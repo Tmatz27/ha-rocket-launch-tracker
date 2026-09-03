@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 from .const import (
     CONF_API_KEY,
     CONF_FAR_INTERVAL_MINUTES,
+    CONF_LOCATION_IDS,
     CONF_NEAR_INTERVAL_MINUTES,
     CONF_NEAR_WINDOW_HOURS,
     CONF_SITE_FILTER,
@@ -31,6 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = RocketLaunchCoordinator(
         hass,
         site_filter=config.get(CONF_SITE_FILTER, DEFAULT_SITE_FILTER),
+        location_ids=config.get(CONF_LOCATION_IDS),
         api_key=config.get(CONF_API_KEY) or None,
         upcoming_count=config.get(CONF_UPCOMING_COUNT, DEFAULT_UPCOMING_COUNT),
         near_window_hours=config.get(CONF_NEAR_WINDOW_HOURS, DEFAULT_NEAR_WINDOW_HOURS),

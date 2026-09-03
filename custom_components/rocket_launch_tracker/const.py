@@ -4,8 +4,10 @@ DOMAIN = "rocket_launch_tracker"
 
 API_BASE_URL = "https://ll.thespacedevs.com/2.3.0"
 UPCOMING_PATH = "/launches/upcoming/"
+LOCATIONS_PATH = "/locations/"
 
 CONF_SITE_FILTER = "site_filter"
+CONF_LOCATION_IDS = "location_ids"
 CONF_API_KEY = "api_key"
 CONF_UPCOMING_COUNT = "upcoming_count"
 CONF_NEAR_WINDOW_HOURS = "near_window_hours"
