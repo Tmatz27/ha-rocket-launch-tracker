@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (defaults to v + manifest.json's version)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate with hassfest
+        uses: home-assistant/actions/hassfest@master
+
+      - name: Resolve release tag
+        id: meta
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          manifest_version="v$(jq -r .version custom_components/rocket_launch_tracker/manifest.json)"
+          if [ "$REF_TYPE" = "tag" ]; then
+            tag="$REF_NAME"
+          elif [ -n "$INPUT_TAG" ]; then
+            tag="$INPUT_TAG"
+          else
+            tag="$manifest_version"
+          fi
+          if [ "$tag" != "$manifest_version" ]; then
+            echo "Tag $tag does not match manifest.json's version ($manifest_version)." >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Publishing $tag"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          generate_release_notes: true

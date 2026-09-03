@@ -1,0 +1,56 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Track launches from a site",
+        "description": "Reads Launch Library 2 (thespacedevs.com), filtered to launches at or near the site you name below.",
+        "data": {
+          "site_filter": "Launch site filter",
+          "api_key": "API key (optional)",
+          "upcoming_count": "How many upcoming matching launches to track",
+          "near_window_hours": "Switch to live polling this many hours before launch",
+          "near_interval_minutes": "Live polling interval (minutes)",
+          "far_interval_minutes": "Normal polling interval (minutes)"
+        },
+        "data_description": {
+          "site_filter": "Case-insensitive text matched against the launch pad's location name, e.g. \"Vandenberg\" or \"Cape Canaveral\". Leave blank to track all launches worldwide.",
+          "api_key": "A free Launch Library 2 API key raises the request-rate ceiling above the 15/hour unauthenticated limit. Leave blank to use the free tier.",
+          "near_window_hours": "Inside this window, polling speeds up to the live interval below.",
+          "near_interval_minutes": "How often to poll once inside the live window.",
+          "far_interval_minutes": "How often to poll the rest of the time. Kept comfortably inside the free-tier rate limit by default."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach Launch Library 2 with these settings. Check the site filter and API key, then try again."
+    },
+    "abort": {
+      "already_configured": "A tracker for this site filter already exists."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Rocket Launch Tracker options",
+        "data": {
+          "site_filter": "Launch site filter",
+          "api_key": "API key (optional)",
+          "upcoming_count": "How many upcoming matching launches to track",
+          "near_window_hours": "Switch to live polling this many hours before launch",
+          "near_interval_minutes": "Live polling interval (minutes)",
+          "far_interval_minutes": "Normal polling interval (minutes)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "next_launch": {
+        "name": "Next launch"
+      },
+      "upcoming_launches": {
+        "name": "Upcoming launches"
+      }
+    }
+  }
+}
