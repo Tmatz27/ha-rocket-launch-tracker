@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.1
+
+- Fixed `manifest.json` key ordering (hassfest requires `domain`, `name`,
+  then the rest alphabetical) - this was failing CI outright
+- Added brand assets (`custom_components/rocket_launch_tracker/brand/icon.png`
+  and `logo.png`), required for HACS's integration-category validation since
+  this integration isn't (yet) listed in the community brands repository
+- `sensor.<site>_next_launch` now also exposes a `launch_id` attribute, so
+  automations can tell "the same launch's time changed" apart from "a
+  different launch is now next" - used by the reschedule-alert blueprint in
+  the companion ha-rocket-launch-card repo
+
 ## 0.1.0
 
 - Initial release

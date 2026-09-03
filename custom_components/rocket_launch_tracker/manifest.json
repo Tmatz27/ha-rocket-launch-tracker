@@ -1,13 +1,13 @@
 {
   "domain": "rocket_launch_tracker",
   "name": "Rocket Launch Tracker",
+  "codeowners": ["@Tmatz27"],
   "config_flow": true,
+  "dependencies": [],
   "documentation": "https://github.com/Tmatz27/ha-rocket-launch-tracker",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Tmatz27/ha-rocket-launch-tracker/issues",
   "requirements": [],
-  "dependencies": [],
-  "codeowners": ["@Tmatz27"],
-  "iot_class": "cloud_polling",
-  "integration_type": "service",
-  "version": "0.1.0"
+  "version": "0.1.1"
 }

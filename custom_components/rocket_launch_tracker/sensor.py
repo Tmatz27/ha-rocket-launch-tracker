@@ -82,6 +82,7 @@ class NextLaunchSensor(_BaseLaunchEntity):
             return {"site_filter": self.coordinator.site_filter}
         return {
             "site_filter": self.coordinator.site_filter,
+            "launch_id": launch.get("id"),
             "name": launch.get("name"),
             "mission_name": launch.get("mission_name"),
             "mission_description": launch.get("mission_description"),
