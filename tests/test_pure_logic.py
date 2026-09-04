@@ -143,8 +143,17 @@ RAW_LAUNCH_FULL = {
     "holdreason": "",
     "failreason": "",
     "launch_service_provider": {"id": 121, "name": "SpaceX"},
-    "rocket": {"configuration": {"name": "Falcon 9", "full_name": "Falcon 9 Block 5"}},
-    "mission": {"name": "Starlink Group 12-3", "description": "A batch of Starlink satellites."},
+    "rocket": {
+        "configuration": {"name": "Falcon 9", "full_name": "Falcon 9 Block 5"},
+        "launcher_stage": [
+            {"landing": {"attempt": True, "location": {"name": "Landing Zone 1 (LZ-1)"}}}
+        ],
+    },
+    "mission": {
+        "name": "Starlink Group 12-3",
+        "description": "A batch of Starlink satellites.",
+        "orbit": {"name": "Low Earth Orbit"},
+    },
     "pad": {"name": "Space Launch Complex 4E", "location": {"id": 11, "name": "Vandenberg SFB, CA, USA"}},
     "image": {"image_url": "https://example.com/image.jpg"},
     "webcast_live": True,
@@ -182,6 +191,9 @@ def test_parse_launch_full_record():
     assert launch["webcast_live"] is True
     assert launch["hold_reason"] is None  # empty string normalized to None
     assert launch["fail_reason"] is None
+    assert launch["orbit"] == "Low Earth Orbit"
+    assert launch["landing_attempt"] is True
+    assert launch["landing_location"] == "Landing Zone 1 (LZ-1)"
 
 
 def test_parse_launch_handles_missing_nested_fields_without_raising():
@@ -196,6 +208,57 @@ def test_parse_launch_handles_missing_nested_fields_without_raising():
     assert launch["image"] == "https://example.com/flat-image.jpg"
     # No mission object at all - mission_name falls back to the launch name.
     assert launch["mission_name"] == "Minimal Mission"
+    # No rocket/mission objects at all: unknown, not "confirmed no landing".
+    assert launch["orbit"] is None
+    assert launch["landing_attempt"] is None
+    assert launch["landing_location"] is None
+
+
+def test_parse_launch_landing_attempt_false_when_explicitly_not_attempted():
+    # A real landing object is present, but this specific booster is expendable
+    # (e.g. a high-energy GTO mission) - that's a confirmed False, not unknown.
+    raw = {
+        **RAW_LAUNCH_FULL,
+        "rocket": {
+            "configuration": {"name": "Falcon 9"},
+            "launcher_stage": [{"landing": {"attempt": False, "location": None}}],
+        },
+    }
+    launch = api.parse_launch(raw)
+    assert launch["landing_attempt"] is False
+    assert launch["landing_location"] is None
+
+
+def test_parse_launch_landing_attempt_none_when_launcher_stage_missing():
+    raw = {**RAW_LAUNCH_FULL, "rocket": {"configuration": {"name": "Atlas V"}}}
+    launch = api.parse_launch(raw)
+    assert launch["landing_attempt"] is None
+    assert launch["landing_location"] is None
+
+
+def test_parse_launch_landing_attempt_none_when_launcher_stage_is_empty():
+    raw = {
+        **RAW_LAUNCH_FULL,
+        "rocket": {"configuration": {"name": "Falcon 9"}, "launcher_stage": []},
+    }
+    launch = api.parse_launch(raw)
+    assert launch["landing_attempt"] is None
+
+
+def test_parse_launch_landing_attempt_none_when_stage_has_no_landing_key():
+    raw = {
+        **RAW_LAUNCH_FULL,
+        "rocket": {"configuration": {"name": "Falcon 9"}, "launcher_stage": [{}]},
+    }
+    launch = api.parse_launch(raw)
+    assert launch["landing_attempt"] is None
+    assert launch["landing_location"] is None
+
+
+def test_parse_launch_orbit_missing_when_no_orbit_key():
+    raw = {**RAW_LAUNCH_FULL, "mission": {"name": "No Orbit Listed"}}
+    launch = api.parse_launch(raw)
+    assert launch["orbit"] is None
 
 
 def test_parse_launch_list_filters_non_dict_entries_and_preserves_order():

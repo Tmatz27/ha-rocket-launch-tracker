@@ -121,6 +121,22 @@ def _image_url(raw: dict) -> str | None:
     return None
 
 
+def _first_launcher_stage_landing(raw: dict) -> dict | None:
+    """The first launcher stage's landing plan, if any.
+
+    `rocket.launcher_stage` is a list (some vehicles have multiple stages),
+    and only the first/booster stage's landing plan is relevant for a
+    recovery-attempt badge. Defensive the same way the rest of this module
+    is: a missing or malformed stage list just means "no landing data",
+    never a crash.
+    """
+    stages = _nested(raw, "rocket", "launcher_stage")
+    if not isinstance(stages, list) or not stages or not isinstance(stages[0], dict):
+        return None
+    landing = stages[0].get("landing")
+    return landing if isinstance(landing, dict) else None
+
+
 def parse_launch(raw: dict) -> dict:
     """Normalize one raw Launch Library 2 launch object.
 
@@ -129,6 +145,7 @@ def parse_launch(raw: dict) -> dict:
     particular) has changed across Launch Library API versions and isn't
     independently verified here against a live response.
     """
+    landing = _first_launcher_stage_landing(raw)
     return {
         "id": raw.get("id"),
         "name": raw.get("name"),
@@ -144,6 +161,12 @@ def parse_launch(raw: dict) -> dict:
         or _nested(raw, "rocket", "configuration", "full_name"),
         "mission_name": _nested(raw, "mission", "name") or raw.get("name"),
         "mission_description": _nested(raw, "mission", "description"),
+        "orbit": _nested(raw, "mission", "orbit", "name"),
+        # Always a real bool (never None) once a landing object exists at
+        # all, so the card can tell "no attempt" apart from "we don't know
+        # yet" (older tracker versions never sent this key at all).
+        "landing_attempt": bool(landing.get("attempt")) if landing is not None else None,
+        "landing_location": _nested(landing, "location", "name") if landing is not None else None,
         "pad_name": _nested(raw, "pad", "name"),
         "location_id": _nested(raw, "pad", "location", "id"),
         "location_name": _nested(raw, "pad", "location", "name"),

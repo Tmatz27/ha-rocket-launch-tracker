@@ -115,9 +115,11 @@ sensors:
   (`states('sensor.vandenberg_next_launch')`) and shows a relative
   countdown in Home Assistant's own UI, no template needed. Attributes:
   `name`, `mission_name`, `mission_description`, `status`, `status_abbrev`,
-  `provider`, `rocket`, `pad_name`, `location_name`, `net_precision`,
-  `window_start`, `window_end`, `probability`, `image`, `webcast_live`,
-  `hold_reason`, `fail_reason`, `last_updated`.
+  `provider`, `rocket`, `orbit`, `landing_attempt`, `landing_location`,
+  `pad_name`, `location_name`, `net_precision`, `window_start`, `window_end`,
+  `probability`, `image`, `webcast_live`, `hold_reason`, `fail_reason`,
+  `last_updated`. `landing_attempt` is a boolean, `null` when a launch has
+  no launcher-stage landing data at all rather than a confirmed no.
 - **`sensor.<site>_upcoming_launches`** — state is the count of currently
   tracked matching launches. Its `launches` attribute is the full list, each
   entry shaped the same as the next-launch sensor's attributes above, ordered

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.3
+
+- `parse_launch()` now also forwards `orbit` (from `mission.orbit.name`),
+  `landing_attempt`, and `landing_location` (from the first entry of
+  `rocket.launcher_stage[].landing`), so the companion card can show target
+  orbit and booster recovery status without any client-side guessing. The
+  upcoming-launches request already used `mode=detailed`, so this data was
+  already coming back from Launch Library - it just wasn't being forwarded
+- `landing_attempt` is `None` (not `False`) when a launch has no launcher
+  stage/landing data at all, so consumers can tell "confirmed expendable"
+  apart from "we don't know yet" instead of assuming the latter is a no
+
 ## 0.1.2
 
 - **Fixed launch-site filtering**: switched from `location__name__contains`
