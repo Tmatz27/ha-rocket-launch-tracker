@@ -146,7 +146,10 @@ RAW_LAUNCH_FULL = {
     "rocket": {
         "configuration": {"name": "Falcon 9", "full_name": "Falcon 9 Block 5"},
         "launcher_stage": [
-            {"landing": {"attempt": True, "location": {"name": "Landing Zone 1 (LZ-1)"}}}
+            # "landing_location" (not "location") is the real API v2.3.0 field
+            # name - see test_parse_launch_landing_location_falls_back_to_pre_230_key
+            # for the older shape this still tolerates.
+            {"landing": {"attempt": True, "landing_location": {"name": "Landing Zone 1 (LZ-1)"}}}
         ],
     },
     "mission": {
@@ -221,12 +224,28 @@ def test_parse_launch_landing_attempt_false_when_explicitly_not_attempted():
         **RAW_LAUNCH_FULL,
         "rocket": {
             "configuration": {"name": "Falcon 9"},
-            "launcher_stage": [{"landing": {"attempt": False, "location": None}}],
+            "launcher_stage": [{"landing": {"attempt": False, "landing_location": None}}],
         },
     }
     launch = api.parse_launch(raw)
     assert launch["landing_attempt"] is False
     assert launch["landing_location"] is None
+
+
+def test_parse_launch_landing_location_falls_back_to_pre_230_key():
+    # API v2.3.0 renamed Landing.location to Landing.landing_location. Tolerate
+    # a response still shaped the old way rather than silently losing the
+    # location - this is exactly the bug that shipped in 0.1.3 (read the old
+    # "location" key against a 2.3.0 response, always got None back).
+    raw = {
+        **RAW_LAUNCH_FULL,
+        "rocket": {
+            "configuration": {"name": "Falcon 9"},
+            "launcher_stage": [{"landing": {"attempt": True, "location": {"name": "Of Course I Still Love You"}}}],
+        },
+    }
+    launch = api.parse_launch(raw)
+    assert launch["landing_location"] == "Of Course I Still Love You"
 
 
 def test_parse_launch_landing_attempt_none_when_launcher_stage_missing():

@@ -166,7 +166,15 @@ def parse_launch(raw: dict) -> dict:
         # all, so the card can tell "no attempt" apart from "we don't know
         # yet" (older tracker versions never sent this key at all).
         "landing_attempt": bool(landing.get("attempt")) if landing is not None else None,
-        "landing_location": _nested(landing, "location", "name") if landing is not None else None,
+        # Launch Library renamed this field from `location` to
+        # `landing_location` in API v2.3.0 (which API_BASE_URL now points
+        # at) - fall back to the old key too in case an older/cached
+        # response still uses it.
+        "landing_location": (
+            (_nested(landing, "landing_location", "name") or _nested(landing, "location", "name"))
+            if landing is not None
+            else None
+        ),
         "pad_name": _nested(raw, "pad", "name"),
         "location_id": _nested(raw, "pad", "location", "id"),
         "location_name": _nested(raw, "pad", "location", "name"),

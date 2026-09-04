@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.4
+
+- **Fixed `landing_location` always coming back empty.** 0.1.3 read it from
+  `landing.location.name`, but Launch Library renamed that field to
+  `landing_location` in API v2.3.0 - which `API_BASE_URL` already points at.
+  Every landing badge on the companion card was falling back to a generic
+  "landing attempt planned, site unknown" because of this. Now reads
+  `landing.landing_location.name`, falling back to the old `location` key
+  too in case a response is ever still shaped the old way
+
 ## 0.1.3
 
 - `parse_launch()` now also forwards `orbit` (from `mission.orbit.name`),
