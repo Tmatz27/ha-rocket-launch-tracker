@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.7
+
+- Reconciled release numbering: the previously published v0.2.6 tag pointed
+  to integration code whose manifest still said 0.1.4. This maintenance
+  release moves forward to 0.2.7 and keeps the manifest and tag in sync.
+- Added an explicit VERSION file and pre-release consistency check.
+- Releases now follow successful main validation and include the changelog
+  for the exact tested commit. Existing published tags are preserved.
+- Launch parsing, site filtering, polling and sensor behavior are unchanged.
+
+
 ## 0.1.4
 
 - **Fixed `landing_location` always coming back empty.** 0.1.3 read it from
@@ -66,3 +77,4 @@
 - Config flow with site filter, optional API key, and adjustable intervals;
   editable later via Options without removing the integration
 - Multiple config entries supported, for tracking more than one site
+
