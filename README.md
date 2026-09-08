@@ -30,33 +30,37 @@ instead: it only ever fetches and stores launches that match your site.
 
 ## How it works
 
-- One config entry per site you want to track (add the integration again for
-  a second site — Starbase alongside Vandenberg, for example).
-- Polls Launch Library 2's `/launches/upcoming/` endpoint, filtered by
-  `location__name__contains=<your site>`.
-- **Adaptive polling**: far out, it polls infrequently (30 minutes by
-  default); once the soonest tracked launch is inside a near-window (48
-  hours by default), it switches to polling frequently (5 minutes by
-  default). This is what keeps predicted-schedule data cheap while still
-  getting live, up-to-date status once a launch actually matters.
-- The unauthenticated Launch Library tier is rate-limited to **15
-  requests/hour**. The defaults above use at most ~14/hour even with a
-  launch imminent (2/hour baseline + up to 12/hour near a launch), so they
-  fit inside the free tier without a key. A free registered API key raises
-  that ceiling further — see [thespacedevs.com/llapi](https://thespacedevs.com/llapi).
-  If you widen the intervals, the config flow won't let the near interval go
-  below 3 minutes or the far interval below 15, as a guardrail against
-  accidentally exceeding the free tier.
-- On a 429 (rate limited), it backs off to at least double the far interval
-  rather than retrying immediately.
+- Each configured site uses exact numeric `location__ids` filtering on the
+  `/launches/upcoming/` endpoint after resolving the site name once at setup.
+- Polling uses the normal interval (default 30 minutes) or the near interval
+  (default/minimum 5 minutes) when a launch is within 48 hours. These are
+  alternatives: a single near entry normally makes 12 polls/hour, not 14.
+- All anonymous entries share a rolling **15 requests/hour** budget within
+  this HA runtime. Site lookup, setup verification and manual/failed requests
+  count too. More sites share that capacity, so actual refreshes may be slower
+  than the requested interval. Existing saved 3-minute settings become 5.
+- Matching API keys share their own bucket. The local ceiling remains 15/hour
+  per key in this release because a key's presence does not establish its quota.
+  Supporting Launch Library can raise your server-side quota, but that does
+  not automatically raise this integration's conservative local ceiling.
+- On a 429, all clients sharing that budget pause for at least one hour,
+  twice the far interval, the current interval, or Retry-After, whichever is
+  longest. Manual refresh cannot bypass the shared cooldown.
+- A local deferral retains previously valid data and its last-change time;
+  a real failed refresh remains a failure. With no cached data, setup retries
+  after the budget permits it. No long sleeps block the event loop.
+- Accounting survives entry reloads until HA restarts. Other integrations,
+  computers sharing the public IP and pre-restart requests are not in this
+  local history; they can still cause a server 429, which the shared cooldown
+  handles. The free server limit is per public IP, not per configured site.
+
+See the [official rate-limit guidance](https://github.com/TheSpaceDevs/Tutorials/blob/main/faqs/faq_LL2.md#free-and-paid-access).
 
 ## Requirements
 
 1. Home Assistant 2024.10 or newer
 2. HACS
-3. Optionally, a free [Launch Library 2 API key](https://thespacedevs.com/llapi)
-   for a higher rate limit — the free unauthenticated tier works fine for
-   one or two tracked sites
+3. Optional: a [Launch Library 2 API key](https://thespacedevs.com/llapi). The local request budget remains conservative; see above.
 
 ## Install with HACS
 
@@ -75,7 +79,7 @@ Tracker.**
 | Field | Default | Description |
 | --- | --- | --- |
 | Launch site filter | `Vandenberg` | Case-insensitive text, resolved once at setup to the matching Launch Library location(s) - see below. Leave blank to track every launch worldwide |
-| API key | *(blank)* | Optional. Raises the rate limit above the free 15/hour tier |
+| API key | *(blank)* | Optional authentication; matching keys share a conservative local 15/hour budget |
 | How many upcoming matching launches to track | `5` | Size of the "Upcoming Launches" list |
 | Switch to live polling this many hours before launch | `48` | The near-window |
 | Live polling interval (minutes) | `5` | How often to poll inside the near-window |
@@ -161,3 +165,4 @@ by them — please respect their [rate limits](https://thespacedevs.com/llapi).
 ## License
 
 MIT
+
