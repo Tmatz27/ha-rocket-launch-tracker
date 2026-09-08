@@ -56,5 +56,5 @@ jobs:
             echo "$tag is already published; no existing release will be changed."
             exit 0
           fi
-          node --input-type=module -e 'import fs from "node:fs"; const version=fs.readFileSync("VERSION","utf8").trim(); const section=fs.readFileSync("CHANGELOG.md","utf8").split(`## ${version}\n`)[1]?.split(/\n## /)[0]?.trim(); if(!section) throw Error("Missing release notes"); fs.writeFileSync("release-notes.md",section+"\n\nUpdate through HACS and restart Home Assistant. Launch data behavior is unchanged; this release repairs version and distribution consistency.\n");'
+          node --input-type=module -e 'import fs from "node:fs"; const version=fs.readFileSync("VERSION","utf8").trim(); const section=fs.readFileSync("CHANGELOG.md","utf8").split(`## ${version}\n`)[1]?.split(/\n## /)[0]?.trim(); if(!section) throw Error("Missing release notes"); fs.writeFileSync("release-notes.md",section+"\n\nUpdate through HACS and restart Home Assistant.\n");'
           gh release create "$tag" --target "$(git rev-parse HEAD)" --title "Rocket Launch Tracker $tag" --notes-file release-notes.md --latest
