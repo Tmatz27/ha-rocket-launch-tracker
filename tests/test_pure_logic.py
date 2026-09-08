@@ -217,6 +217,14 @@ def test_parse_launch_handles_missing_nested_fields_without_raising():
     assert launch["landing_location"] is None
 
 
+def test_parse_launch_landing_attempt_unknown_for_partial_landing_data():
+    for landing in ({}, {"attempt": None}, {"landing_location": {"name": "LZ-1"}}):
+        raw = {**RAW_LAUNCH_FULL, "rocket": {"launcher_stage": [{"landing": landing}]}}
+        launch = api.parse_launch(raw)
+        assert launch["landing_attempt"] is None
+        assert launch["landing_location"] == ("LZ-1" if "landing_location" in landing else None)
+
+
 def test_parse_launch_landing_attempt_false_when_explicitly_not_attempted():
     # A real landing object is present, but this specific booster is expendable
     # (e.g. a high-energy GTO mission) - that's a confirmed False, not unknown.
