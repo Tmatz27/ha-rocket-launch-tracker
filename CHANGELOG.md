@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.8
+
+- Fixed RL-007: empty/partial landing objects and null attempt values now
+  remain unknown instead of being reported as a confirmed expendable booster.
+  Explicit false still means no landing attempt; true still means planned.
+- Added regression coverage for empty, null and location-only landing data.
+  The landing_location lookup and older location fallback are preserved.
+- Polling and location filtering are unchanged. Update through HACS and
+  restart Home Assistant.
+
 ## 0.2.7
 
 - Reconciled release numbering: the previously published v0.2.6 tag pointed
