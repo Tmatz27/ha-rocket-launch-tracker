@@ -21,11 +21,10 @@ DEFAULT_NEAR_INTERVAL_MINUTES = 5
 DEFAULT_FAR_INTERVAL_MINUTES = 30
 
 # Free, unauthenticated Launch Library 2 access is rate-limited to 15
-# requests/hour (https://thespacedevs.com/llapi). A registered API key raises
-# that ceiling. These floors keep a misconfigured instance from ever being
-# able to exceed the free tier on its own, regardless of the configured
-# intervals; async_get_stub_config and the options flow clamp to them.
-MIN_NEAR_INTERVAL_MINUTES = 3
+# requests/hour (https://thespacedevs.com/llapi). The shared request budget
+# enforces this across entries and setup requests; interval floors alone
+# cannot enforce a combined ceiling. Clamp legacy values at runtime too.
+MIN_NEAR_INTERVAL_MINUTES = 5
 MIN_FAR_INTERVAL_MINUTES = 15
 
 ATTRIBUTION = "Data provided by Launch Library 2 (thespacedevs.com)"

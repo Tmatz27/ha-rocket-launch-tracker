@@ -11,6 +11,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import LaunchLibraryClient, LaunchLibraryError, LaunchLibraryNoLocationMatch
+from .request_budget import BudgetDeferred, shared_budget
 from .const import (
     CONF_API_KEY,
     CONF_FAR_INTERVAL_MINUTES,
@@ -46,7 +47,7 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
             ): vol.All(vol.Coerce(float), vol.Range(min=1, max=240)),
             vol.Optional(
                 CONF_NEAR_INTERVAL_MINUTES,
-                default=defaults.get(CONF_NEAR_INTERVAL_MINUTES, DEFAULT_NEAR_INTERVAL_MINUTES),
+                default=max(MIN_NEAR_INTERVAL_MINUTES, defaults.get(CONF_NEAR_INTERVAL_MINUTES, DEFAULT_NEAR_INTERVAL_MINUTES)),
             ): vol.All(vol.Coerce(float), vol.Range(min=MIN_NEAR_INTERVAL_MINUTES, max=120)),
             vol.Optional(
                 CONF_FAR_INTERVAL_MINUTES,
@@ -88,13 +89,16 @@ class RocketLaunchTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._abort_if_unique_id_configured()
 
             session = async_get_clientsession(self.hass)
-            client = LaunchLibraryClient(session=session, api_key=user_input.get(CONF_API_KEY) or None)
+            api_key = user_input.get(CONF_API_KEY) or None
+            client = LaunchLibraryClient(session=session, api_key=api_key, budget=shared_budget(self.hass.data, api_key))
             try:
                 location_ids = await _resolve_location_ids(client, site_filter) if site_filter else []
                 user_input[CONF_LOCATION_IDS] = location_ids
                 await client.async_get_upcoming(location_ids or None, limit=1)
             except LaunchLibraryNoLocationMatch:
                 errors["base"] = "no_location_match"
+            except BudgetDeferred:
+                errors["base"] = "request_budget"
             except LaunchLibraryError:
                 errors["base"] = "cannot_connect"
             else:
@@ -122,11 +126,14 @@ class RocketLaunchTrackerOptionsFlow(config_entries.OptionsFlow):
             user_input[CONF_SITE_FILTER] = site_filter
 
             session = async_get_clientsession(self.hass)
-            client = LaunchLibraryClient(session=session, api_key=user_input.get(CONF_API_KEY) or None)
+            api_key = user_input.get(CONF_API_KEY) or None
+            client = LaunchLibraryClient(session=session, api_key=api_key, budget=shared_budget(self.hass.data, api_key))
             try:
                 user_input[CONF_LOCATION_IDS] = await _resolve_location_ids(client, site_filter) if site_filter else []
             except LaunchLibraryNoLocationMatch:
                 errors["base"] = "no_location_match"
+            except BudgetDeferred:
+                errors["base"] = "request_budget"
             except LaunchLibraryError:
                 errors["base"] = "cannot_connect"
             else:

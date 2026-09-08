@@ -9,10 +9,11 @@ flow) lives in the other modules and consumes these functions.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .const import API_BASE_URL, LOCATIONS_PATH, UPCOMING_PATH
+from .request_budget import RequestBudget, retry_after_seconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,6 +26,10 @@ class LaunchLibraryError(Exception):
 
 class LaunchLibraryRateLimited(LaunchLibraryError):
     """Raised specifically for HTTP 429 responses."""
+
+    def __init__(self, message, retry_after=3600):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class LaunchLibraryNoLocationMatch(LaunchLibraryError):
@@ -41,6 +46,7 @@ class LaunchLibraryClient:
 
     session: Any
     api_key: str | None = None
+    budget: RequestBudget = field(default_factory=RequestBudget)
 
     async def async_get_upcoming(self, location_ids: list[int] | None, limit: int) -> dict:
         """Fetch the next `limit` launches, optionally filtered to specific locations.
@@ -75,14 +81,17 @@ class LaunchLibraryClient:
             headers["Authorization"] = f"Token {self.api_key}"
 
         url = f"{API_BASE_URL}{path}"
+        self.budget.reserve()
         try:
             async with self.session.get(
                 url, params=params, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS
             ) as response:
                 if response.status == 429:
+                    retry_after = max(3600, retry_after_seconds(response.headers.get("Retry-After")))
+                    self.budget.defer(retry_after)
                     raise LaunchLibraryRateLimited(
                         "Launch Library 2 rate limit exceeded (free tier is "
-                        "15 requests/hour; consider adding an API key)"
+                        "15 requests/hour)", retry_after=retry_after
                     )
                 if response.status >= 400:
                     body = await response.text()
