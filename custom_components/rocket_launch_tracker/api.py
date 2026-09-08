@@ -162,10 +162,9 @@ def parse_launch(raw: dict) -> dict:
         "mission_name": _nested(raw, "mission", "name") or raw.get("name"),
         "mission_description": _nested(raw, "mission", "description"),
         "orbit": _nested(raw, "mission", "orbit", "name"),
-        # Always a real bool (never None) once a landing object exists at
-        # all, so the card can tell "no attempt" apart from "we don't know
-        # yet" (older tracker versions never sent this key at all).
-        "landing_attempt": bool(landing.get("attempt")) if landing is not None else None,
+        # Missing/null attempt data is unknown, not a confirmed expendable
+        # booster. Preserve explicit False as a confirmed no-attempt plan.
+        "landing_attempt": bool(landing["attempt"]) if landing is not None and landing.get("attempt") is not None else None,
         # Launch Library renamed this field from `location` to
         # `landing_location` in API v2.3.0 (which API_BASE_URL now points
         # at) - fall back to the old key too in case an older/cached
