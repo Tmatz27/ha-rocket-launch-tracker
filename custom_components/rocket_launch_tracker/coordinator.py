@@ -23,8 +23,9 @@ from .api import (
     filter_by_location_ids,
     parse_launch_list,
 )
-from .const import DOMAIN
+from .const import DOMAIN, MIN_NEAR_INTERVAL_MINUTES, MIN_FAR_INTERVAL_MINUTES
 from .interval import next_poll_interval
+from .request_budget import BudgetDeferred, shared_budget, backoff_seconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,9 +49,10 @@ class RocketLaunchCoordinator(DataUpdateCoordinator[list[dict]]):
         self.location_ids = location_ids or None
         self.upcoming_count = upcoming_count
         self._near_window = timedelta(hours=near_window_hours)
-        self._near_interval = timedelta(minutes=near_interval_minutes)
-        self._far_interval = timedelta(minutes=far_interval_minutes)
-        self._client = LaunchLibraryClient(session=async_get_clientsession(hass), api_key=api_key)
+        self._near_interval = timedelta(minutes=max(MIN_NEAR_INTERVAL_MINUTES, near_interval_minutes))
+        self._far_interval = timedelta(minutes=max(MIN_FAR_INTERVAL_MINUTES, far_interval_minutes))
+        self._client = LaunchLibraryClient(session=async_get_clientsession(hass), api_key=api_key,
+                                           budget=shared_budget(hass.data, api_key))
 
         super().__init__(
             hass,
@@ -62,10 +64,20 @@ class RocketLaunchCoordinator(DataUpdateCoordinator[list[dict]]):
     async def _async_update_data(self) -> list[dict]:
         try:
             payload = await self._client.async_get_upcoming(self.location_ids, self.upcoming_count)
+        except BudgetDeferred as err:
+            self.update_interval = max(self.update_interval, timedelta(seconds=err.retry_after + 1))
+            # A scheduled local deferral is not a failed network refresh.
+            # Keep already-valid data; never revive data after a real failure.
+            if self.last_update_success and self.data is not None:
+                return self.data
+            raise UpdateFailed(str(err)) from err
         except LaunchLibraryRateLimited as err:
             # Back off harder than the configured far interval rather than
             # hammering an endpoint that just told us to slow down.
-            self.update_interval = min(self._far_interval * 2, timedelta(hours=1))
+            seconds = backoff_seconds(self._far_interval.total_seconds(),
+                                      self.update_interval.total_seconds(), err.retry_after)
+            self.update_interval = timedelta(seconds=seconds)
+            self._client.budget.defer(seconds)
             raise UpdateFailed(str(err)) from err
         except LaunchLibraryError as err:
             raise UpdateFailed(str(err)) from err

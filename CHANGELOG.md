@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.9
+
+- RL-003: added a rolling 15-requests/hour budget shared by all anonymous
+  entries in this HA runtime, including setup, site lookups, manual refreshes
+  and failed requests. Matching API keys share a separate conservative
+  15/hour bucket; this release does not infer a higher paid quota from a key.
+- Raised the minimum near interval to 5 minutes and clamp older saved values
+  at runtime. Near and far intervals are alternatives, not additive polls.
+- Honor HTTP Retry-After and share 429 cooldowns. Backoff is at least one
+  hour, twice the configured far interval, the current interval and the
+  server's requested delay, so long intervals are never shortened.
+- Local budget deferrals keep previously valid cached data until the next
+  permitted poll. They do not revive data after a real failure. Setup waits
+  with an actionable budget message instead of making extra HTTP calls.
+- Added 13 offline budget/client/coordinator tests. Budget history survives
+  entry reloads but resets on HA restart; other processes/IP-sharing apps
+  remain outside local accounting. Server throttling is always respected.
+
 ## 0.2.8
 
 - Fixed RL-007: empty/partial landing objects and null attempt values now
