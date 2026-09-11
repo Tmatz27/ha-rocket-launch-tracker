@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.10
+
+- LaunchLibraryClient.budget is now a required, keyword-only argument
+  instead of defaulting to an unshared RequestBudget. A call site that
+  forgot budget= previously got a budget silently disconnected from the
+  rest of this HA runtime's request accounting, with no error - quietly
+  defeating the 0.2.9 shared rate-limit fix. All current call sites already
+  pass budget= explicitly; this only removes the footgun for future ones.
+
 ## 0.2.9
 
 - RL-003: added a rolling 15-requests/hour budget shared by all anonymous
