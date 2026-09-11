@@ -46,7 +46,10 @@ class LaunchLibraryClient:
 
     session: Any
     api_key: str | None = None
-    budget: RequestBudget = field(default_factory=RequestBudget)
+    # Required, not defaulted: a call site that forgets budget= must fail
+    # loudly instead of silently getting an unshared budget that doesn't
+    # coordinate with the rest of this HA runtime, defeating rate limiting.
+    budget: RequestBudget = field(kw_only=True)
 
     async def async_get_upcoming(self, location_ids: list[int] | None, limit: int) -> dict:
         """Fetch the next `limit` launches, optionally filtered to specific locations.
