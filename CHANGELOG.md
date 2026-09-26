@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.11
+
+- A single failed poll no longer makes both sensors unavailable. Before,
+  any timeout, server error, connection problem or rate limit marked them
+  unavailable until the next successful poll. Near a launch that's a full
+  5 minutes, several times a day: it blanked the dashboard card and could
+  make an automation miss its moment. The sensors now keep the last good
+  data through up to 2 failed polls in a row, and only go unavailable on
+  the 3rd (about 15 minutes near a launch, 90 otherwise) or when there is
+  no good data yet.
+- Each failed poll that keeps old data is logged as a warning naming the
+  error, so persistent Launch Library problems are still visible in
+  Settings > System > Logs.
+- Rate-limit backoff and the shared request budget are unchanged: a 429
+  still pauses polling for at least an hour. The sensors just stay
+  available while it waits.
+
 ## 0.2.10
 
 - LaunchLibraryClient.budget is now a required, keyword-only argument

@@ -8,7 +8,7 @@ the frontend is
 which reads `sensor.<site>_next_launch` and `sensor.<site>_upcoming_launches`
 and never calls Launch Library directly.
 
-Current released version: **v0.2.10** (as of 2026-09-11). Check
+Current released version: **v0.2.11** (as of 2026-09-26). Check
 `VERSION`/`CHANGELOG.md` for current truth.
 
 ## Architecture essentials
@@ -37,12 +37,18 @@ Current released version: **v0.2.10** (as of 2026-09-11). Check
 - `backoff_seconds(far_seconds, current_seconds, retry_after)` is
   `max(3600, far*2, current, retry_after)` - deliberately a max, not a
   min, so a long configured far-interval is never shrunk by a 429.
-- A `BudgetDeferred` (proactive local block, before any network call) is
-  handled differently from a real server `LaunchLibraryRateLimited` (429):
-  the former quietly serves cached data if available, the latter always
-  raises `UpdateFailed` even with good cached data. This asymmetry is
-  intentional but was flagged as a legitimate design question, not settled
-  doctrine - reconsider it if it causes user-visible confusion.
+- **Failed polls keep the last good data** (0.2.11). Raising `UpdateFailed`
+  makes every `CoordinatorEntity` unavailable until the next poll, and
+  through 0.2.10 any single timeout/5xx/429 did exactly that. Users saw the
+  sensor flap unavailable for exactly one 5-minute near-poll several times a
+  day, blanking the card and making the automations miss their windows.
+  `_keep_or_fail()` now returns cached data for up to
+  `FAILED_POLLS_BEFORE_UNAVAILABLE - 1` consecutive failed polls (3 in
+  const.py) and raises on the next, or immediately when there's no data. It
+  never revives data once `last_update_success` is already False. A 429
+  still applies its backoff and shared-budget cooldown before returning
+  cached data. `BudgetDeferred` (a local block, no request made) keeps valid
+  data and doesn't count as a failure.
 - `landing_attempt` is a tri-state (`True`/`False`/`None`, not just
   bool) - `None` means the launch has no launcher-stage landing data at
   all, distinct from an explicit "no landing attempt planned." Landing
@@ -61,7 +67,9 @@ Current released version: **v0.2.10** (as of 2026-09-11). Check
   HA base classes and imports the real coordinator against them, so
   `_async_update_data()`'s actual branching (`BudgetDeferred` vs.
   `LaunchLibraryRateLimited` vs. generic error) is genuinely exercised.
-- Run with `python -m pytest tests/ -v` (35 tests as of 0.2.10).
+- Run with `python -m pytest tests/ -v` (39 tests as of 0.2.11).
+  `CoordinatorTests.refresh()` mirrors `DataUpdateCoordinator._async_refresh`'s
+  `last_update_success` bookkeeping - use it for any availability test.
 
 ## Release process
 

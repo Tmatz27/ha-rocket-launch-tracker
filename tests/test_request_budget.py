@@ -153,12 +153,75 @@ def load_coordinator():
 
 coordinator, UpdateFailed = load_coordinator()
 
+LAUNCH = {'id': 'launch-1', 'name': 'Falcon 9 | Test', 'net': '2027-01-01T12:00:00Z',
+          'pad': {'location': {'id': 11, 'name': 'Vandenberg SFB'}}}
+
 
 class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
     def make(self, hass, far=30):
         return coordinator.RocketLaunchCoordinator(hass, site_filter='Vandenberg', location_ids=[11],
             api_key=None, upcoming_count=5, near_window_hours=48, near_interval_minutes=3,
             far_interval_minutes=far)
+
+    async def refresh(self, c):
+        # Mirror DataUpdateCoordinator._async_refresh's bookkeeping, which the
+        # minimal base class above doesn't do: entities are available exactly
+        # when last_update_success is True, and data survives a failure.
+        try:
+            c.data = await c._async_update_data()
+            c.last_update_success = True
+        except UpdateFailed:
+            c.last_update_success = False
+
+    async def test_transient_failures_keep_last_good_data_until_sustained(self):
+        session = Session(Response(payload={'results': [LAUNCH]}))
+        c = self.make(types.SimpleNamespace(data={}, session=session))
+        await self.refresh(c)
+        good = c.data
+        self.assertEqual([launch['id'] for launch in good], ['launch-1'])
+        session.response = Response(500)
+        for attempt in (1, 2):
+            await self.refresh(c)
+            self.assertTrue(c.last_update_success, attempt)
+            self.assertIs(c.data, good)
+        await self.refresh(c)
+        self.assertFalse(c.last_update_success)
+        # One good poll clears the streak; the next blip is masked again.
+        session.response = Response(payload={'results': [LAUNCH]})
+        await self.refresh(c)
+        self.assertTrue(c.last_update_success)
+        session.response = Response(500)
+        await self.refresh(c)
+        self.assertTrue(c.last_update_success)
+
+    async def test_failure_after_going_unavailable_does_not_revive_stale_data(self):
+        session = Session(Response(payload={'results': [LAUNCH]}))
+        c = self.make(types.SimpleNamespace(data={}, session=session))
+        await self.refresh(c)
+        session.response = Response(500)
+        for _ in range(4):
+            await self.refresh(c)
+        self.assertFalse(c.last_update_success)
+
+    async def test_rate_limit_keeps_last_good_data_but_still_backs_off(self):
+        session = Session(Response(payload={'results': [LAUNCH]}))
+        c = self.make(types.SimpleNamespace(data={}, session=session))
+        await self.refresh(c)
+        good = c.data
+        session.response = Response(429, {'Retry-After': '7200'})
+        await self.refresh(c)
+        self.assertTrue(c.last_update_success)
+        self.assertIs(c.data, good)
+        self.assertEqual(c.update_interval, timedelta(hours=2))
+        await self.refresh(c)
+        self.assertEqual(len(session.calls), 2, 'cooldown must still block the next request')
+        self.assertTrue(c.last_update_success)
+
+    async def test_failure_without_good_data_is_reported_immediately(self):
+        c = self.make(types.SimpleNamespace(data={}, session=Session(Response(500))))
+        await self.refresh(c)
+        self.assertFalse(c.last_update_success)
+        self.assertIsNone(c.data)
 
     async def test_runtime_clamps_old_settings_and_shares_entries(self):
         hass = types.SimpleNamespace(data={}, session=Session())

@@ -27,4 +27,10 @@ DEFAULT_FAR_INTERVAL_MINUTES = 30
 MIN_NEAR_INTERVAL_MINUTES = 5
 MIN_FAR_INTERVAL_MINUTES = 15
 
+# A single failed poll (timeout, 5xx, rate limit) keeps serving the last good
+# data; the sensors only go unavailable once this many polls in a row fail.
+# Counting polls rather than minutes scales with cadence: ~15 minutes near a
+# launch, ~90 minutes otherwise.
+FAILED_POLLS_BEFORE_UNAVAILABLE = 3
+
 ATTRIBUTION = "Data provided by Launch Library 2 (thespacedevs.com)"

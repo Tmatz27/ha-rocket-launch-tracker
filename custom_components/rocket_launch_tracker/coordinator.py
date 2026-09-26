@@ -23,7 +23,12 @@ from .api import (
     filter_by_location_ids,
     parse_launch_list,
 )
-from .const import DOMAIN, MIN_NEAR_INTERVAL_MINUTES, MIN_FAR_INTERVAL_MINUTES
+from .const import (
+    DOMAIN,
+    FAILED_POLLS_BEFORE_UNAVAILABLE,
+    MIN_FAR_INTERVAL_MINUTES,
+    MIN_NEAR_INTERVAL_MINUTES,
+)
 from .interval import next_poll_interval
 from .request_budget import BudgetDeferred, shared_budget, backoff_seconds
 
@@ -53,6 +58,7 @@ class RocketLaunchCoordinator(DataUpdateCoordinator[list[dict]]):
         self._far_interval = timedelta(minutes=max(MIN_FAR_INTERVAL_MINUTES, far_interval_minutes))
         self._client = LaunchLibraryClient(session=async_get_clientsession(hass), api_key=api_key,
                                            budget=shared_budget(hass.data, api_key))
+        self._failed_polls = 0
 
         super().__init__(
             hass,
@@ -78,10 +84,11 @@ class RocketLaunchCoordinator(DataUpdateCoordinator[list[dict]]):
                                       self.update_interval.total_seconds(), err.retry_after)
             self.update_interval = timedelta(seconds=seconds)
             self._client.budget.defer(seconds)
-            raise UpdateFailed(str(err)) from err
+            return self._keep_or_fail(err)
         except LaunchLibraryError as err:
-            raise UpdateFailed(str(err)) from err
+            return self._keep_or_fail(err)
 
+        self._failed_polls = 0
         # filter_by_location_ids is a safety net behind the server-side
         # query filter above, not a replacement for it - see its docstring.
         launches = filter_by_location_ids(parse_launch_list(payload), self.location_ids)
@@ -93,3 +100,21 @@ class RocketLaunchCoordinator(DataUpdateCoordinator[list[dict]]):
             far_interval=self._far_interval,
         )
         return launches
+
+    def _keep_or_fail(self, err: LaunchLibraryError) -> list[dict]:
+        # Raising UpdateFailed makes every entity unavailable until the next
+        # poll, so one Launch Library blip used to blank dashboards and
+        # automations for a whole interval. Launch data that was right one
+        # poll ago is still the best answer; only a sustained outage, or
+        # having no good data at all, is surfaced. Never revive data once
+        # the entities have already gone unavailable.
+        self._failed_polls += 1
+        if (self.last_update_success and self.data is not None
+                and self._failed_polls < FAILED_POLLS_BEFORE_UNAVAILABLE):
+            _LOGGER.warning(
+                "Launch Library update failed, keeping the last good data "
+                "(failed poll %d of %d before the sensors go unavailable): %s",
+                self._failed_polls, FAILED_POLLS_BEFORE_UNAVAILABLE, err,
+            )
+            return self.data
+        raise UpdateFailed(str(err)) from err

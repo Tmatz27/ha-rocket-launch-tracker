@@ -46,9 +46,14 @@ instead: it only ever fetches and stores launches that match your site.
 - On a 429, all clients sharing that budget pause for at least one hour,
   twice the far interval, the current interval, or Retry-After, whichever is
   longest. Manual refresh cannot bypass the shared cooldown.
-- A local deferral retains previously valid data and its last-change time;
-  a real failed refresh remains a failure. With no cached data, setup retries
-  after the budget permits it. No long sleeps block the event loop.
+- A single failed poll (timeout, server error, connection problem or rate
+  limit) keeps serving the last good data, so a Launch Library blip doesn't
+  blank dashboards or automations. The sensors go unavailable only after 3
+  failed polls in a row (about 15 minutes near a launch, 90 otherwise), or
+  when there's no good data yet. Each kept-data poll is logged as a warning.
+  Budget deferrals keep valid data without counting as failures. With no
+  cached data, setup retries after the budget permits it. No long sleeps
+  block the event loop.
 - Accounting survives entry reloads until HA restarts. Other integrations,
   computers sharing the public IP and pre-restart requests are not in this
   local history; they can still cause a server 429, which the shared cooldown
