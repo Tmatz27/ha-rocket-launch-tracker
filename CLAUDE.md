@@ -55,6 +55,13 @@ Current released version: **v0.2.11** (as of 2026-09-26). Check
   location is `landing_location` (LL2 2.3.0 renamed this from the older
   `location` key - `parse_launch` falls back to the old key for
   compatibility).
+- `NextLaunchSensor`'s state is the raw NET (or `window_start`) with no
+  precision gating; `net_precision` is only an attribute. Every consumer
+  (the card, the four blueprints) applies its own rule: a time is real
+  only at Second or Minute precision (or none reported). Hour and coarser
+  can be API placeholders. Confirmed launches are often published at
+  Minute precision, so never gate on Second alone - card 0.3.4-0.3.8 did,
+  and no countdown or countdown alert ever fired for those launches.
 
 ## What's actually tested
 
